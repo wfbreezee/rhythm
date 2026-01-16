@@ -4,7 +4,7 @@ import { Play, Pause, Minus, Plus } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 
 export const Metronome: React.FC = () => {
-    const [bpm, setBpm] = useState(120);
+    const [bpm, setBpm] = useState(180);
     const [instrument, setInstrumentState] = useState<InstrumentType>('digital');
     const [lastBeat, setLastBeat] = useState<number | null>(null);
     const [isBumping, setIsBumping] = useState(false);
