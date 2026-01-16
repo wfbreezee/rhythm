@@ -1,0 +1,19 @@
+/* eslint-disable no-restricted-globals */
+let timerId: number | null = null;
+const interval = 25;
+
+self.onmessage = (e: MessageEvent) => {
+    if (e.data === 'start') {
+        if (timerId !== null) clearInterval(timerId);
+        timerId = self.setInterval(() => {
+            self.postMessage('tick');
+        }, interval);
+    } else if (e.data === 'stop') {
+        if (timerId !== null) {
+            clearInterval(timerId);
+            timerId = null;
+        }
+    }
+};
+
+export { };

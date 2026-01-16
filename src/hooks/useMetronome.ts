@@ -16,8 +16,7 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
     const audioContext = useRef<AudioContext | null>(null);
     const nextNoteTime = useRef<number>(0);
     const currentBeat = useRef<number>(0);
-    const timerID = useRef<number | null>(null);
-    const lookahead = 25.0; // milliseconds
+    const workerRef = useRef<Worker | null>(null);
     const scheduleAheadTime = 0.1; // seconds
 
     const ensureAudioContext = () => {
@@ -96,7 +95,23 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
 
     const schedulerRef = useRef<(() => void) | null>(null);
 
-    // Update scheduler when dependencies change (minimally)
+    // Initialize Worker
+    useEffect(() => {
+        const worker = new Worker(new URL('./metronome.worker.ts', import.meta.url), { type: 'module' });
+        workerRef.current = worker;
+
+        worker.onmessage = (e) => {
+            if (e.data === 'tick') {
+                schedulerRef.current?.();
+            }
+        };
+
+        return () => {
+            worker.terminate();
+        };
+    }, []);
+
+    // Update scheduler
     useEffect(() => {
         schedulerRef.current = () => {
             if (!audioContext.current) return;
@@ -113,9 +128,8 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
 
                 if (nextNoteRef.current) nextNoteRef.current();
             }
-            timerID.current = window.setTimeout(() => schedulerRef.current?.(), lookahead);
         };
-    }, [beatsPerMeasure]);
+    }, [beatsPerMeasure]); // No loop dependency needed
 
     const start = () => {
         ensureAudioContext();
@@ -129,14 +143,14 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
         nextNoteTime.current = audioContext.current.currentTime + 0.05;
 
         setIsPlaying(true);
-        schedulerRef.current?.();
+        // Start worker timer
+        workerRef.current?.postMessage('start');
     };
 
     const stop = () => {
         setIsPlaying(false);
-        if (timerID.current) {
-            window.clearTimeout(timerID.current);
-        }
+        // Stop worker timer
+        workerRef.current?.postMessage('stop');
     };
 
     // Wake Lock for mobile
@@ -198,7 +212,7 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
     // Cleanup
     useEffect(() => {
         return () => {
-            if (timerID.current) window.clearTimeout(timerID.current);
+            // Stop worker if unmounted while playing (though worker.terminate does this)
             if (audioContext.current) audioContext.current.close();
         }
     }, []);
