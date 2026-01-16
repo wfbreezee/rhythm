@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neu-base: #e2e8f0;
+  --color-neu-light: #f8fafc;
+  --color-neu-dark: #cbd5e1;
+
+  --shadow-neu-flat: 5px 5px 10px #b8c2cc, -5px -5px 10px #ffffff;
+  --shadow-neu-pressed: inset 5px 5px 10px #b8c2cc, inset -5px -5px 10px #ffffff;
+  --shadow-neu-convex: linear-gradient(145deg, #f0f4f8, #cbd5e1);
+  --shadow-neu-concave: linear-gradient(145deg, #cbd5e1, #f0f4f8);
+}
+
+@layer base {
+  body {
+    @apply bg-neu-base text-slate-700 antialiased;
+  }
+}
+
+@layer utilities {
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+}
+
+/* Custom Knob Styling for Range Inputs */
+input[type=range] {
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 24px;
+  width: 24px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  box-shadow: 2px 2px 5px #b8c2cc, -2px -2px 5px #ffffff;
+  cursor: pointer;
+  margin-top: -8px;
+  /* Offset for track */
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  box-shadow: inset 2px 2px 5px #b8c2cc, inset -2px -2px 5px #ffffff;
+}
+
+input[type=range]:focus {
+  outline: none;
+}

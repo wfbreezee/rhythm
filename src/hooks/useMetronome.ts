@@ -1,0 +1,207 @@
+import { useRef, useEffect, useState, useCallback } from 'react';
+
+// Frequencies for High and Low clicks
+const HERTZ_HIGH = 1000;
+const HERTZ_LOW = 800;
+
+interface UseMetronomeProps {
+    bpm: number;
+    beatsPerMeasure: number;
+}
+
+export type InstrumentType = 'digital' | 'woodblock' | 'drum';
+
+export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const audioContext = useRef<AudioContext | null>(null);
+    const nextNoteTime = useRef<number>(0);
+    const currentBeat = useRef<number>(0);
+    const timerID = useRef<number | null>(null);
+    const lookahead = 25.0; // milliseconds
+    const scheduleAheadTime = 0.1; // seconds
+
+    const ensureAudioContext = () => {
+        if (!audioContext.current) {
+            audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+    };
+
+    const playDigital = (ctx: AudioContext, time: number, beat: number) => {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.frequency.value = beat === 0 ? HERTZ_HIGH : HERTZ_LOW;
+        env.gain.value = 1;
+        env.gain.exponentialRampToValueAtTime(1, time + 0.001);
+        env.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.05);
+    };
+
+    const playWoodblock = (ctx: AudioContext, time: number, beat: number) => {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = beat === 0 ? 1200 : 800;
+        env.gain.setValueAtTime(1, time);
+        env.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.1);
+    };
+
+    const playDrum = (ctx: AudioContext, time: number, beat: number) => {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.frequency.setValueAtTime(beat === 0 ? 150 : 100, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+        env.gain.setValueAtTime(1, time);
+        env.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+        osc.connect(env);
+        env.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.5);
+    };
+
+    const playSound = (ctx: AudioContext, type: InstrumentType, time: number, beat: number) => {
+        switch (type) {
+            case 'woodblock': playWoodblock(ctx, time, beat); break;
+            case 'drum': playDrum(ctx, time, beat); break;
+            case 'digital': default: playDigital(ctx, time, beat); break;
+        }
+    };
+
+    // Refs for closure access in scheduler loop
+    const bpmRef = useRef(bpm);
+    useEffect(() => { bpmRef.current = bpm; }, [bpm]);
+
+    const instrumentRef = useRef<InstrumentType>('digital');
+    const setInstrument = (type: InstrumentType) => {
+        instrumentRef.current = type;
+    };
+
+    const onBeatRef = useRef<((beat: number) => void) | null>(null);
+    const setOnBeat = (cb: (beat: number) => void) => {
+        onBeatRef.current = cb;
+    };
+
+    const nextNoteRef = useRef<(() => void) | null>(null);
+    nextNoteRef.current = () => {
+        const secondsPerBeat = 60.0 / bpmRef.current;
+        nextNoteTime.current += secondsPerBeat;
+        currentBeat.current = (currentBeat.current + 1) % beatsPerMeasure;
+    };
+
+    const schedulerRef = useRef<(() => void) | null>(null);
+
+    // Update scheduler when dependencies change (minimally)
+    useEffect(() => {
+        schedulerRef.current = () => {
+            if (!audioContext.current) return;
+            while (nextNoteTime.current < audioContext.current.currentTime + scheduleAheadTime) {
+                // Schedule Sound
+                playSound(audioContext.current, instrumentRef.current, nextNoteTime.current, currentBeat.current);
+
+                // Schedule Visual Sync
+                const delay = (nextNoteTime.current - audioContext.current.currentTime) * 1000;
+                const scheduledBeat = currentBeat.current;
+                setTimeout(() => {
+                    if (onBeatRef.current) onBeatRef.current(scheduledBeat);
+                }, Math.max(0, delay));
+
+                if (nextNoteRef.current) nextNoteRef.current();
+            }
+            timerID.current = window.setTimeout(() => schedulerRef.current?.(), lookahead);
+        };
+    }, [beatsPerMeasure]);
+
+    const start = () => {
+        ensureAudioContext();
+        if (!audioContext.current) return;
+
+        if (audioContext.current.state === 'suspended') {
+            audioContext.current.resume();
+        }
+
+        currentBeat.current = 0;
+        nextNoteTime.current = audioContext.current.currentTime + 0.05;
+
+        setIsPlaying(true);
+        schedulerRef.current?.();
+    };
+
+    const stop = () => {
+        setIsPlaying(false);
+        if (timerID.current) {
+            window.clearTimeout(timerID.current);
+        }
+    };
+
+    // Wake Lock for mobile
+    useEffect(() => {
+        let wakeLock: WakeLockSentinel | null = null;
+
+        const requestWakeLock = async () => {
+            try {
+                // Cast navigator to any because wakeLock types might be missing in older TS/Env
+                const nav = navigator as any;
+                if (isPlaying && nav.wakeLock) {
+                    wakeLock = await nav.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.warn('Wake Lock error:', err);
+            }
+        };
+
+        const releaseWakeLock = async () => {
+            if (wakeLock) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (err) {
+                    console.warn('Wake Lock release error:', err);
+                }
+            }
+        };
+
+        if (isPlaying) {
+            requestWakeLock();
+        } else {
+            releaseWakeLock();
+        }
+
+        // handle visibility change to re-acquire lock if tab becomes visible again
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && isPlaying) {
+                requestWakeLock();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            releaseWakeLock();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [isPlaying]);
+
+    const toggle = useCallback(() => {
+        if (isPlaying) {
+            stop();
+        } else {
+            start();
+        }
+    }, [isPlaying]);
+
+    // Cleanup
+    useEffect(() => {
+        return () => {
+            if (timerID.current) window.clearTimeout(timerID.current);
+            if (audioContext.current) audioContext.current.close();
+        }
+    }, []);
+
+    return { isPlaying, toggle, setInstrument, setOnBeat };
+};
