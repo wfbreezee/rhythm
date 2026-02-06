@@ -29,8 +29,8 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
         const osc = ctx.createOscillator();
         const env = ctx.createGain();
         osc.frequency.value = beat === 0 ? HERTZ_HIGH : HERTZ_LOW;
-        env.gain.value = 1;
-        env.gain.exponentialRampToValueAtTime(1, time + 0.001);
+        env.gain.value = 3;
+        env.gain.exponentialRampToValueAtTime(3, time + 0.001);
         env.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
         osc.connect(env);
         env.connect(ctx.destination);
@@ -43,7 +43,7 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
         const env = ctx.createGain();
         osc.type = 'sine';
         osc.frequency.value = beat === 0 ? 1200 : 800;
-        env.gain.setValueAtTime(1, time);
+        env.gain.setValueAtTime(3, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
         osc.connect(env);
         env.connect(ctx.destination);
@@ -56,7 +56,7 @@ export const useMetronome = ({ bpm, beatsPerMeasure }: UseMetronomeProps) => {
         const env = ctx.createGain();
         osc.frequency.setValueAtTime(beat === 0 ? 150 : 100, time);
         osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
-        env.gain.setValueAtTime(1, time);
+        env.gain.setValueAtTime(3, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
         osc.connect(env);
         env.connect(ctx.destination);
