@@ -27,6 +27,16 @@ export const Metronome: React.FC = () => {
         });
     }, [setOnBeat]);
 
+    // Sync timer with metronome
+    useEffect(() => {
+        if (isPlaying) {
+            startTimer();
+        } else {
+            stopTimer();
+        }
+    }, [isPlaying, startTimer, stopTimer]);
+
+
     const handleBpmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value);
         setBpm(val);
